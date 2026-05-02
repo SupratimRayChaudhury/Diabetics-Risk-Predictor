@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiaPredict | Deep Learning Diabetes Screener</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Tailwind CSS (CDN for single-file constraint) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#005088',
+                        secondary: '#F58220',
+                        light: '#f8fafc',
+                        dark: '#1e293b'
+                    },
+                    fontFamily: {
+                        sans: ['"DM Sans"', 'sans-serif'],
+                        serif: ['Merriweather', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Styles & Animations */
+        body {
+            background-color: #cbd5e1;
+            background-image: radial-gradient(#94a3b8 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group i {
+            position: absolute;
+            left: 1rem;
+            top: 2.3rem;
+            color: #64748b;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            outline: none;
+            transition: all 0.3s;
+            background: #f8fafc;
+        }
+
+        .input-group input:focus {
+            border-color: #005088;
+            box-shadow: 0 0 0 3px rgba(0, 80, 136, 0.1);
+            background: #fff;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        /* Circular Progress Bar */
+        .circular-chart {
+            display: block;
+            margin: 0 auto;
+            max-width: 80%;
+            max-height: 250px;
+        }
+
+        .circle-bg {
+            fill: none;
+            stroke: #e2e8f0;
+            stroke-width: 3.8;
+        }
+
+        .circle {
+            fill: none;
+            stroke-width: 2.8;
+            stroke-linecap: round;
+            transition: stroke-dasharray 1.5s ease-out, stroke 0.5s ease;
+        }
+
+        .percentage {
+            fill: #1e293b;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+            font-size: 0.5em;
+            text-anchor: middle;
+        }
+
+        /* Loader */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #F58220;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .fade-in { animation: fadeIn 0.5s ease-in forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="text-dark antialiased min-h-screen flex flex-col font-sans">
+
+    <!-- Navigation -->
+    <nav class="bg-primary text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <i class="fa-solid fa-notes-medical text-secondary text-2xl"></i>
+                    <span class="font-serif font-bold text-xl tracking-wide">DiaPredict</span>
+                </div>
+                <div class="hidden md:flex space-x-8 text-sm font-medium text-blue-100">
+                    <a href="#" class="hover:text-white transition">Model Overview</a>
+                    <a href="#" class="hover:text-white transition">Clinical Validation</a>
+                    <a href="#" class="hover:text-white transition">About Thesis</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 py-12 flex items-center justify-center">
+        
+        <div class="glass-panel w-full max-w-6xl rounded-2xl overflow-hidden flex flex-col lg:flex-row">
+            
+            <!-- Left Side: Header & Form -->
+            <div class="w-full lg:w-3/5 p-8 lg:p-12">
+                <div class="mb-8">
+                    <h1 class="font-serif text-3xl lg:text-4xl text-primary font-bold mb-3">Diabetes Risk Screener</h1>
+                    <p class="text-slate-500">Enter patient physiological parameters below to simulate the Deep Learning prediction phase.</p>
+                </div>
+
+                <form id="predictionForm" class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                    <!-- Feature 1 -->
+                    <div class="input-group">
+                        <label for="pregnancies">Pregnancies (Count)</label>
+                        <i class="fa-solid fa-person-pregnant"></i>
+                        <input type="number" id="pregnancies" required min="0" max="20" step="1" placeholder="e.g., 2">
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="input-group">
+                        <label for="glucose">Plasma Glucose (mg/dL)</label>
+                        <i class="fa-solid fa-cubes-stacked"></i>
+                        <input type="number" id="glucose" required min="0" max="300" step="1" placeholder="e.g., 120">
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="input-group">
+                        <label for="bloodPressure">Diastolic BP (mm Hg)</label>
+                        <i class="fa-solid fa-heart-pulse"></i>
+                        <input type="number" id="bloodPressure" required min="0" max="150" step="1" placeholder="e.g., 70">
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="input-group">
+                        <label for="skinThickness">Skin Thickness (mm)</label>
+                        <i class="fa-solid fa-layer-group"></i>
+                        <input type="number" id="skinThickness" required min="0" max="100" step="1" placeholder="e.g., 20">
+                    </div>
+
+                    <!-- Feature 5 -->
+                    <div class="input-group">
+                        <label for="insulin">Serum Insulin (mu U/ml)</label>
+                        <i class="fa-solid fa-syringe"></i>
+                        <input type="number" id="insulin" required min="0" max="900" step="1" placeholder="e.g., 80">
+                    </div>
+
+                    <!-- Feature 6 -->
+                    <div class="input-group">
+                        <label for="bmi">Body Mass Index (kg/m²)</label>
+                        <i class="fa-solid fa-weight-scale"></i>
+                        <input type="number" id="bmi" required min="0" max="70" step="0.1" placeholder="e.g., 28.5">
+                    </div>
+
+                    <!-- Feature 7 -->
+                    <div class="input-group">
+                        <label for="pedigree">Diabetes Pedigree Function</label>
+                        <i class="fa-solid fa-dna"></i>
+                        <input type="number" id="pedigree" required min="0" max="3" step="0.001" placeholder="e.g., 0.45">
+                    </div>
+
+                    <!-- Feature 8 -->
+                    <div class="input-group">
+                        <label for="age">Age (Years)</label>
+                        <i class="fa-solid fa-person-cane"></i>
+                        <input type="number" id="age" required min="21" max="120" step="1" placeholder="e.g., 45">
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="col-span-1 md:col-span-2 mt-4">
+                        <button type="submit" class="w-full bg-secondary hover:bg-orange-600 text-white font-bold py-4 rounded-xl transition duration-300 shadow-lg shadow-orange-500/30 flex justify-center items-center gap-2 text-lg">
+                            <i class="fa-solid fa-microchip"></i> Run Deep Learning Inference
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-lg flex gap-3 text-sm text-blue-800">
+                    <i class="fa-solid fa-circle-info mt-1"></i>
+                    <p><strong>Note for Demonstration:</strong> This is a front-end simulation of the backend Flask API detailed in Phase 2 of the thesis. It uses a mathematical proxy tuned to the Pima Indians dataset to demonstrate UI functionality.</p>
+                </div>
+            </div>
+
+            <!-- Right Side: Results Panel -->
+            <div class="w-full lg:w-2/5 bg-slate-50 border-l border-slate-200 p-8 lg:p-12 flex flex-col justify-center items-center text-center relative">
+                
+                <!-- Initial State -->
+                <div id="initialState" class="fade-in">
+                    <div class="w-24 h-24 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-400">
+                        <i class="fa-solid fa-user-doctor text-4xl"></i>
+                    </div>
+                    <h3 class="font-serif text-2xl font-bold text-slate-700 mb-2">Awaiting Data</h3>
+                    <p class="text-slate-500">Fill out the physiological parameters on the left to generate a personalized risk assessment.</p>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loadingState" class="hidden flex-col items-center justify-center w-full">
+                    <div class="loader mb-4"></div>
+                    <p class="text-primary font-bold animate-pulse">Running Neural Network...</p>
+                    <p class="text-xs text-slate-400 mt-2">Processing 8 input features</p>
+                </div>
+
+                <!-- Result State -->
+                <div id="resultState" class="hidden w-full fade-in">
+                    <h3 class="font-serif text-2xl font-bold text-primary mb-6">Diagnostic Prediction</h3>
+                    
+                    <!-- Gauge -->
+                    <svg viewBox="0 0 36 36" class="circular-chart mb-6">
+                        <path class="circle-bg"
+                            d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831
+                            a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                        <path id="progressCircle" class="circle"
+                            stroke-dasharray="0, 100"
+                            d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831
+                            a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                        <text id="progressText" x="18" y="20.35" class="percentage">0%</text>
+                    </svg>
+
+                    <!-- Diagnosis Badge -->
+                    <div id="diagnosisBadge" class="inline-block px-6 py-2 rounded-full font-bold text-lg mb-4 text-white shadow-md">
+                        Evaluating...
+                    </div>
+
+                    <div class="bg-white p-4 rounded-lg border border-slate-200 text-left text-sm text-slate-600 mt-4 shadow-sm">
+                        <p class="font-bold text-slate-800 mb-2 border-b pb-2"><i class="fa-solid fa-chart-pie text-secondary"></i> XAI Summary (Simulated)</p>
+                        <ul class="list-disc pl-5 space-y-1" id="xaiInsights">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-slate-400 py-6 border-t border-slate-800 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-sm">
+            <p>&copy; 2024 DiaPredict | B.Tech Thesis Project</p>
+            <p class="mt-2 text-slate-500">Developed by Supratim Ray Chaudhury (22UBE019) | NIT Agartala</p>
+            <p class="mt-4 text-xs text-slate-600 max-w-2xl mx-auto">
+                <strong>Disclaimer:</strong> This application is a strictly educational demonstration of machine learning techniques. It is not approved by any regulatory body and should never be used for actual medical diagnosis, treatment, or clinical decision-making.
+            </p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent page reload
+
+            // 1. Gather Data
+            const patientData = {
+                pregnancies: parseFloat(document.getElementById('pregnancies').value),
+                glucose: parseFloat(document.getElementById('glucose').value),
+                bloodPressure: parseFloat(document.getElementById('bloodPressure').value),
+                skinThickness: parseFloat(document.getElementById('skinThickness').value),
+                insulin: parseFloat(document.getElementById('insulin').value),
+                bmi: parseFloat(document.getElementById('bmi').value),
+                pedigree: parseFloat(document.getElementById('pedigree').value),
+                age: parseFloat(document.getElementById('age').value),
+            };
+
+            // 2. UI State Transition (Show Loader)
+            document.getElementById('initialState').classList.add('hidden');
+            document.getElementById('resultState').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('flex');
+
+            // 3. Simulate Network Latency (1.5 seconds)
+            setTimeout(() => {
+                // Calculate mock risk
+                const result = calculateMockRisk(patientData);
+                
+                // Update UI State (Show Results)
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('loadingState').classList.remove('flex');
+                document.getElementById('resultState').classList.remove('hidden');
+
+                // Render Results
+                renderResults(result, patientData);
+
+            }, 1500);
+        });
+
+        /**
+         * MOCK INFERENCE ALGORITHM
+         * Simulates a deep learning / logistic regression output tuned to Pima dataset norms.
+         */
+        function calculateMockRisk(data) {
+            // Base bias strongly geared toward negative (low risk)
+            let score = -8.5; 
+
+            // Feature Weights (Simulated based on correlation matrix insights)
+            score += data.pregnancies * 0.12;
+            score += data.glucose * 0.038;      // Strongest predictor
+            score += data.bloodPressure * -0.002; // Weak impact
+            score += data.skinThickness * 0.005;
+            score += data.insulin * 0.0015;
+            score += data.bmi * 0.09;           // Strong predictor
+            score += data.pedigree * 1.1;       // Strong predictor
+            score += data.age * 0.025;
+
+            // Apply Sigmoid Activation Function to get probability (0 to 1)
+            let probability = 1 / (1 + Math.exp(-score));
+            
+            return (probability * 100); // Return percentage
+        }
+
+        /**
+         * Renders the data to the Result Panel
+         */
+        function renderResults(probability, data) {
+            const circle = document.getElementById('progressCircle');
+            const text = document.getElementById('progressText');
+            const badge = document.getElementById('diagnosisBadge');
+            const xaiList = document.getElementById('xaiInsights');
+
+            // Format probability and ensure it is treated as a number
+            const targetPercent = parseFloat(probability.toFixed(1));
+            
+            // Set Color and Category based on thresholds
+            let colorStr = '';
+            let categoryStr = '';
+            
+            if (targetPercent < 33) {
+                colorStr = '#10b981'; // Emerald/Green (Low Risk)
+                categoryStr = 'Low Risk (Negative)';
+                badge.className = 'inline-block px-6 py-2 rounded-full font-bold text-lg mb-4 text-white shadow-md bg-emerald-500';
+            } else if (targetPercent < 65) {
+                colorStr = '#f59e0b'; // Amber (Moderate Risk)
+                categoryStr = 'Borderline Risk';
+                badge.className = 'inline-block px-6 py-2 rounded-full font-bold text-lg mb-4 text-white shadow-md bg-amber-500';
+            } else {
+                colorStr = '#ef4444'; // Red (High Risk)
+                categoryStr = 'High Risk (Positive)';
+                badge.className = 'inline-block px-6 py-2 rounded-full font-bold text-lg mb-4 text-white shadow-md bg-red-500';
+            }
+
+            // Animate Gauge
+            setTimeout(() => {
+                circle.style.strokeDasharray = `${targetPercent}, 100`;
+                circle.style.stroke = colorStr;
+                
+                // Animate Number Counter
+                let current = 0;
+                let step = targetPercent / 30; // 30 frames
+                let timer = setInterval(() => {
+                    current += step;
+                    if (current >= targetPercent) {
+                        current = targetPercent;
+                        clearInterval(timer);
+                    }
+                    text.textContent = current.toFixed(1) + '%';
+                    text.style.fill = colorStr;
+                }, 30);
+            }, 100);
+
+            badge.textContent = categoryStr;
+
+            // Generate Mock XAI (Explainable AI) Insights
+            xaiList.innerHTML = ''; // Clear old
+            
+            if (data.glucose > 140) {
+                xaiList.innerHTML += `<li><span class="text-red-500 font-bold">↑</span> Elevated Glucose (${data.glucose}) significantly increased risk score.</li>`;
+            } else {
+                xaiList.innerHTML += `<li><span class="text-green-500 font-bold">↓</span> Normal Glucose levels reduced overall risk.</li>`;
+            }
+
+            if (data.bmi > 30) {
+                xaiList.innerHTML += `<li><span class="text-red-500 font-bold">↑</span> BMI > 30 indicates obesity, a heavy contributing factor.</li>`;
+            }
+
+            if (data.pedigree > 0.8) {
+                xaiList.innerHTML += `<li><span class="text-red-500 font-bold">↑</span> Strong genetic history (Pedigree) detected.</li>`;
+            }
+
+            if(xaiList.innerHTML === '') {
+                xaiList.innerHTML = `<li>Patient parameters are largely within normal physiological ranges.</li>`;
+            }
+        }
+    </script>
+</body>
+</html>
